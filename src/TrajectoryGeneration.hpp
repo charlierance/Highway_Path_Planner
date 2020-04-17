@@ -33,8 +33,7 @@ class TrajectoryGeneration
      * @param car_y: The current y coordinate of ego (cartesian).
      * @param car_yaw: The current heading of ego in degrees.
      */
-    void init(int& ego_lane, double& max_vel, json& previous_path, double& car_x,
-              double& car_y, double& car_yaw);
+    void init(int& ego_lane, double& max_vel, json& previous_path, double& car_x, double& car_y, double& car_yaw);
 
     /**
      * @brief Find the last two path points from the previous trajectory,
@@ -45,8 +44,7 @@ class TrajectoryGeneration
      * @param car_y: Ego vehicle current y coordinate.
      * @param car_yaw: Ego vehicle current yaw in degrees.
      */
-    void FindLastPoints(json& prev_x_points, json& prev_y_points, double& car_x,
-                        double& car_y, double& car_yaw);
+    void FindLastPoints(json& prev_x_points, json& prev_y_points, double& car_x, double& car_y, double& car_yaw);
 
     /**
      * @brief Calculate a set number of points in the future trajectory and append them as x, y cartesian coordinates to
@@ -80,12 +78,11 @@ class TrajectoryGeneration
                              std::vector<double>& next_x_vals, std::vector<double>& next_y_vals);
 
   private:
-
     // Define const and parameters variables
     int EGO_LANE;
     double MAX_VEL;
-    int MAX_TRAJECTORY_POINTS= 50;
-    int MAX_TRAJECTORY_LENGTH = 90;
+    int MAX_TRAJECTORY_POINTS = 70;
+    int MAX_TRAJECTORY_LENGTH = 120;
 
     // Previous trajectory size
     int prev_size;

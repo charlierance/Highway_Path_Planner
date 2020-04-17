@@ -35,12 +35,6 @@ class DynamicObjectDetection
     virtual ~DynamicObjectDetection();
 
     /**
-     * @brief Initialising the shared value in the class.
-     * @param sensor_fusion_data: The JSON data produced by the output of sensor fusion.
-     */
-    void init(json& sensor_fusion_data);
-
-    /**
      * @brief Calculate the velocity and the predicted s coordinate in the future for the vehicle.
      * @param vx: Longitudinal velocity in m/s of the object.
      * @param vy: Lateral velocity in m/s of the object.
@@ -51,18 +45,19 @@ class DynamicObjectDetection
     std::vector<double> DistanceSpeedCheck(double vx, double vy, double prev_size);
 
     /**
-     * @brief Used to determine if a FV is in center lane and if so return its characteristics.
-     * @param lane: An integer value of the lane to check, 0 = Left Lane, 1 = Center Lane, 2 = Outer Lane
-     * @param previous_path: A json vector of the previous trajectory calculated.
-     * @param car_s: Egos Frenet s coordinate.
-     * @param end_traj_s: The end of the previous trajectorys' s coordinate.
-     * @return A ForwardVehicle object containing relevant information about objects in the current lane.
+     * @brief Return a ForwardVehicle object determining the state of the specified lane based on the dynamic objects.
+     * @param sensor_fusion_data: The raw ouput of sensor fusion.
+     * @param lane: Ego Vehicles Lane
+     * @param previous_path: The ouput of the previous trajectory.
+     * @param car_s: The cars s location in Frenet Coordinates.
+     * @param end_traj_s: The end of the previous trajectory Frenet s coordinate.
+     * @return A ForwardVehicle object describing the state of the dynmaic objects in the specified lane.
      */
-    ForwardVehicle CheckLane(int& lane, json& previous_path, double& car_s, double& end_traj_s);
+    ForwardVehicle CheckLane(json& sensor_fusion_data, int& lane, json& previous_path, double& car_s,
+                             double& end_traj_s);
 
     double FV_MAX_HEADWAY = 30.0;
-    double FV_MAX_REAR_HEADWAY = 10.0;
-    json DETECTIONS;
+    double MAX_REAR_HEADWAY = -40.0;
 };
 
 #endif  // PATH_PLANNING_DYNAMICOBJECTDETECTION_HPP

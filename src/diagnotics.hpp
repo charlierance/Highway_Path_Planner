@@ -9,7 +9,10 @@
 
 using namespace std;
 
-void PublishDiagnostics(int& ego_lane, double& ego_velocity, string& state, double& Forward_Vehicle_Distance, double& Forward_Vehicle_Speed, bool& fv_too_close, double& lane_0_cost,double& lane_1_cost, double& lane_2_cost)
+// Publish a diagnostic output to STDOUT
+inline void PublishDiagnostics(int& ego_lane, double& ego_velocity, string& state, double& Forward_Vehicle_Distance,
+                               double& Forward_Vehicle_Speed, bool& fv_too_close, double& lane_0_cost,
+                               double& lane_1_cost, double& lane_2_cost)
 {
     cout << "************************************" << endl;
     cout << "Ego Lane                  : " << ego_lane << endl;
@@ -24,4 +27,4 @@ void PublishDiagnostics(int& ego_lane, double& ego_velocity, string& state, doub
     cout << "************************************" << endl;
 }
 
-#endif //PATH_PLANNING_DIAGNOTICS_HPP
+#endif  // PATH_PLANNING_DIAGNOTICS_HPP

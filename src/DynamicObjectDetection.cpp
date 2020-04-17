@@ -17,10 +17,23 @@ DynamicObjectDetection::~DynamicObjectDetection()
 {
 }
 
-// Initialise Global Values
-void DynamicObjectDetection::init(json& sensor_fusion_data)
+// Return Lane number 0 = Left, 1 = Center, 2 = Right
+double GetCarLane(double car_d)
 {
-    DETECTIONS = sensor_fusion_data;
+    double lane = 1;  // default CENTER lane
+    if (car_d > 0 && car_d < 4)
+    {
+        lane = 0;  // LEFT
+    }
+    else if (car_d >= 4 && car_d <= 8)
+    {
+        lane = 1;  // CENTER
+    }
+    else if (car_d > 8 && car_d <= 12)
+    {
+        lane = 2;  // RIGHT
+    }
+    return lane;
 }
 
 // Calculation of velocity and distance
@@ -35,7 +48,8 @@ std::vector<double> DynamicObjectDetection::DistanceSpeedCheck(double vx, double
 }
 
 // Determine FV in Ego Lane
-ForwardVehicle DynamicObjectDetection::CheckLane(int& lane, json& previous_path, double& car_s, double& end_traj_s)
+ForwardVehicle DynamicObjectDetection::CheckLane(json& sensor_fusion_data, int& lane, json& previous_path,
+                                                 double& car_s, double& end_traj_s)
 {
     // Set ego position to end of previous trajectory of there is one
     if (previous_path.size() > 0)
@@ -43,45 +57,70 @@ ForwardVehicle DynamicObjectDetection::CheckLane(int& lane, json& previous_path,
         car_s = end_traj_s;
     }
 
-    // Create an object for the forward vehicle
-    ForwardVehicle fv;
+    double closest_front = std::numeric_limits<double>::max();
+    double closest_rear = -std::numeric_limits<double>::max();
 
-    // Initialise predicted s to arbitrary value
-    fv.predicted_s = std::numeric_limits<double>::max();
-    fv.rear_s = std::numeric_limits<double>::lowest();
-    fv.too_close_front = false;
-    fv.too_close_rear = false;
+    double vehicle_speed;
 
     // Iterate over sensor fusion data and perform checks relevant to center lane.
-    for (int i = 0; i < DETECTIONS.size(); i++)
+    for (int i = 0; i < sensor_fusion_data.size(); i++)
     {
-        float d = DETECTIONS[i][6];
-        // Determine if object in specified lane assuming lane width of 4m.
-        if (d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2))
+        float d = sensor_fusion_data[i][6];
+        double vehicle_lane = GetCarLane(d);
+
+        if (lane == vehicle_lane)
         {
-        // Calculate Distance and speed to FV
-        std::vector<double> vel_pred_s =
-            DistanceSpeedCheck(DETECTIONS[i][3], DETECTIONS[i][4], previous_path.size());
+            // Calculate Distance and speed to FV
+            std::vector<double> vel_pred_s =
+                DistanceSpeedCheck(sensor_fusion_data[i][3], sensor_fusion_data[i][4], previous_path.size());
 
-            fv.lane_number = lane;
-            fv.predicted_s = DETECTIONS[i][5];
+            vehicle_speed = vel_pred_s[0];
+            double predicted_s = (double)sensor_fusion_data[i][5] + vel_pred_s[1];
 
-            fv.velocity = vel_pred_s[0];
-            fv.predicted_s += vel_pred_s[1];
-
-            // Check if in front of ego
-            if ((fv.predicted_s > car_s) && ((fv.predicted_s - car_s) < FV_MAX_HEADWAY))
+            if ((predicted_s > 0.0001) && (predicted_s > car_s))
             {
-                fv.lane_free = false;
-                fv.too_close_front = true;
+                closest_front = std::min(predicted_s, closest_front);
             }
-            else
+            else if ((predicted_s <= 0.0001) && (predicted_s < car_s))
             {
-                fv.lane_free = true;
-                fv.too_close_front = false;
+                closest_rear = std::max(predicted_s, closest_rear);
             }
-
-            return fv;
         }
     }
+
+    ForwardVehicle fv;
+
+    if ((closest_front > (car_s + FV_MAX_HEADWAY)) && (closest_rear < (car_s - MAX_REAR_HEADWAY)))
+    {
+        fv.lane_free = true;
+    }
+    else
+    {
+        fv.lane_free = false;
+    }
+
+    if (closest_front < (car_s + FV_MAX_HEADWAY))
+    {
+        fv.too_close_front = true;
+    }
+    else
+    {
+        fv.too_close_front = false;
+    }
+
+    if (closest_rear > (car_s - MAX_REAR_HEADWAY))
+    {
+        fv.too_close_rear = true;
+    }
+    else
+    {
+        fv.too_close_rear = false;
+    }
+
+    fv.lane_number = lane;
+    fv.velocity = vehicle_speed;
+    fv.predicted_s = closest_front;
+    fv.rear_s = closest_rear;
+
+    return fv;
 }

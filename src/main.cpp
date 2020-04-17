@@ -9,6 +9,7 @@
 #include "DynamicObjectDetection.hpp"
 #include "TrajectoryGeneration.hpp"
 #include "BehaviourStateMachine.hpp"
+#include "diagnotics.hpp"
 
 // for convenience
 using nlohmann::json;
@@ -132,10 +133,73 @@ int main()
                     //                    map_waypoints_y); tj.ConvertToEgoCoordinates(); tj.FitSplineTrajectory(scale,
                     //                    previous_path_x, previous_path_y, next_x_vals, next_y_vals);
 
+                    // Initialise Dynamic Object Detection
+                    DynamicObjectDetection DoD;
+
+                    // Define lane numbers, 0 = Furthest Left, 1 = Center, 2 = Furthest Right
+                    std::vector<int> lanes = { 0, 1, 2 };
+
+                    // Set a detection for each lane
+                    auto lane_0_dod = DoD.CheckLane(sensor_fusion, lanes[0], previous_path_x, car_s, end_path_s);
+                    auto lane_1_dod = DoD.CheckLane(sensor_fusion, lanes[1], previous_path_x, car_s, end_path_s);
+                    auto lane_2_dod = DoD.CheckLane(sensor_fusion, lanes[2], previous_path_x, car_s, end_path_s);
+
+                    // Initialise State Machine
                     BehaviourStateMachine state_machine;
-                    state_machine.FiniteStateMachine(
-                        sensor_fusion, EGO_VEL, EGOLANE, car_s, end_path_s, previous_path_x, previous_path_y, car_d, car_x,
-                        car_y, car_yaw, map_waypoints_s, map_waypoints_x, map_waypoints_y, next_x_vals, next_y_vals);
+
+                    // Calculate individual cost for each lane
+                    double lane0_dist_cost = state_machine.FvDistanceCost(lane_0_dod, DoD.FV_MAX_HEADWAY, car_s);
+                    double lane1_dist_cost = state_machine.FvDistanceCost(lane_1_dod, DoD.FV_MAX_HEADWAY, car_s);
+                    double lane2_dist_cost = state_machine.FvDistanceCost(lane_2_dod, DoD.FV_MAX_HEADWAY, car_s);
+
+                    double lane0_speed_cost = state_machine.LaneSpeedCost(lane_0_dod, state_machine.SPEED_LIMIT);
+                    double lane1_speed_cost = state_machine.LaneSpeedCost(lane_1_dod, state_machine.SPEED_LIMIT);
+                    double lane2_speed_cost = state_machine.LaneSpeedCost(lane_2_dod, state_machine.SPEED_LIMIT);
+
+                    // Calculate total cost for each lane, adding slight bias for the center lane as this is the optimal
+                    // lane.
+                    double lane0_total_cost = ((lane0_dist_cost + lane0_speed_cost) / 3.0) + 0.2;
+                    double lane1_total_cost = (lane1_dist_cost + lane1_speed_cost) / 3.0;
+                    double lane2_total_cost = ((lane2_dist_cost + lane2_speed_cost) / 3.0) + 0.2;
+
+                    // Decide on action using our state machine.
+                    state_machine.FiniteStateMachine(EGO_VEL, EGOLANE, lane_0_dod, lane_1_dod, lane_2_dod,
+                                                     lane0_total_cost, lane1_total_cost, lane2_total_cost);
+
+                    // Generate our trajectory
+                    TrajectoryGeneration tj;
+                    tj.init(EGOLANE, EGO_VEL, previous_path_x, car_x, car_y, car_yaw);
+                    tj.FindLastPoints(previous_path_x, previous_path_y, car_x, car_y, car_yaw);
+                    int scale = tj.FindNextPoints(3, car_s, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+                    tj.ConvertToEgoCoordinates();
+                    tj.FitSplineTrajectory(scale, previous_path_x, previous_path_y, next_x_vals, next_y_vals);
+
+                    // Determine FV for diagnostics
+                    double fv_distance, fv_speed;
+                    bool fv_too_close;
+
+                    if (EGOLANE == 0)
+                    {
+                        fv_distance = lane_0_dod.predicted_s - car_s;
+                        fv_speed = lane_0_dod.velocity;
+                        fv_too_close = lane_0_dod.too_close_front;
+                    }
+                    else if (EGOLANE == 1)
+                    {
+                        fv_distance = lane_1_dod.predicted_s - car_s;
+                        fv_speed = lane_1_dod.velocity;
+                        fv_too_close = lane_1_dod.too_close_front;
+                    }
+                    else if (EGOLANE == 2)
+                    {
+                        fv_distance = lane_2_dod.predicted_s - car_s;
+                        fv_speed = lane_2_dod.velocity;
+                        fv_too_close = lane_2_dod.too_close_front;
+                    }
+
+                    // Publish diagnostic output
+                    PublishDiagnostics(EGOLANE, EGO_VEL, state_machine.STATE, fv_distance, fv_speed, fv_too_close,
+                                       lane0_total_cost, lane1_total_cost, lane2_total_cost);
 
                     msgJson["next_x"] = next_x_vals;
                     msgJson["next_y"] = next_y_vals;
